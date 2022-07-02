@@ -6,7 +6,7 @@ from layers.box_utils import jaccard, center_size, mask_iou
 from utils import timer
 from utils.functions import SavePath
 from layers.output_utils import postprocess, undo_image_transformation
-from scripts.area_polygon import calculate_intersection_area
+from scripts.arm_entry import ArmEntry
 import pycocotools
 
 from data import cfg, set_cfg, set_dataset
@@ -133,7 +133,6 @@ coco_cats = {} # Call prep_coco_cats to fill this
 coco_cats_inv = {}
 color_cache = defaultdict(lambda: {})
 
-
 def prep_coco_cats():
     """ Prepare inverted table for category id lookup given a coco cats object. """
     for coco_cat_id, transformed_cat_id_p1 in get_label_map().items():
@@ -171,7 +170,7 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
         #     masks = t[3][idx]
         classes, scores, boxes, masks = [x[idx].cpu().numpy() for x in t]
 
-        if len(classes) > 5: print('Error Detect')
+        if len(classes) > 5: pass
         else:
           flag = 0
           for i, clas in enumerate(classes):
@@ -198,7 +197,7 @@ def prep_display(img, max_score_label):
     #     elif k == 'center':
     #         new_image = cv2.polylines(img, [v], True, (0,255,255), 1)
     #     else: new_image = cv2.polylines(img, [v], True, (0,255,0), 1)
-    new_image = cv2.putText(img, max_score_label, (10,10), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0,0,255), 2)
+    new_image = cv2.putText(img, max_score_label, (200,200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0,0,255), 2)
     return new_image
 
 
@@ -229,20 +228,16 @@ def  get_outline(img, mask):
     return dic_layout, black
 
 
-def get_overlap(dic_mask):
-    overlap_mouse_center = calculate_intersection_area(dic_mask['mouse'], dic_mask['center'])
-    overlap_mouse_pA = calculate_intersection_area(dic_mask['mouse'], dic_mask['pA'])
-    overlap_mouse_pB = calculate_intersection_area(dic_mask['mouse'], dic_mask['pB'])
-    overlap_mouse_pC = calculate_intersection_area(dic_mask['mouse'], dic_mask['pC'])
-
-    return [overlap_mouse_center, overlap_mouse_pA, overlap_mouse_pB, overlap_mouse_pC]
-
-
-def get_max_overlap(list_score):
-    list_label = ['center', 'pA', 'pB', 'pC']
-    max_score = max(list_score)
-    idx = list_score.index(max_score)
-    return list_label[idx]
+def clear_list(list_label):
+    list_result = [list_label[0]]
+    i = j = 0
+    while i < len(list_label)-1:
+        if list_label[i+1] != list_result[j]:
+            list_result.append(list_label[i+1])
+            i += 1
+            j += 1
+        else: i += 1
+    return list_result
 
 
 def evalimage(net:Yolact, path:str, save_path:str=None):
@@ -254,8 +249,10 @@ def evalimage(net:Yolact, path:str, save_path:str=None):
 
     dic_mask = get_mask(preds, frame, None, None, undo_transform=False)
 
+    arm_entry = ArmEntry(dic_mask)
+
     if 'mouse' in dic_mask.keys() and 'center' in dic_mask.keys() and 'pA' in dic_mask.keys() and 'pB' in dic_mask.keys() and 'pC' in dic_mask.keys():
-        img_numpy = prep_display(img_numpy, get_max_overlap(get_overlap(dic_mask)))
+        img_numpy = prep_display(img_numpy, arm_entry.get_max_overlap())
     
     # if save_path is None:
     #     img_numpy = img_numpy[:, :, (2, 1, 0)]
@@ -266,6 +263,7 @@ def evalimage(net:Yolact, path:str, save_path:str=None):
         plt.show()
     else:
         cv2.imwrite(save_path, img_numpy)
+
 
 def evalimages(net:Yolact, input_folder:str, output_folder:str):
     if not os.path.exists(output_folder):
@@ -532,6 +530,62 @@ def evalvideo(net:Yolact, path:str, out_path:str=None):
         print('\nStopping...')
     
     cleanup_and_exit()
+      
+
+def log_video(net:Yolact, path:str, out_path:str=None):
+    # If the path is a digit, parse it as a webcam index
+    is_webcam = path.isdigit()
+    list_result = []
+    
+    # If the input image size is constant, this make things faster (hence why we can use it in a video setting).
+    cudnn.benchmark = True
+    
+    if is_webcam:
+        vid = cv2.VideoCapture(int(path))
+    else:
+        vid = cv2.VideoCapture(path)
+    flag_start = 0
+    flag_locate = "center"
+    index = 0
+    while True:
+        ret, frame = vid.read()
+        if not ret:
+            cv2.waitKey(10)
+            
+            vid.release()
+            cv2.destroyAllWindows()
+            break
+
+        frame = torch.from_numpy(frame).cuda().float()
+        batch = FastBaseTransform()(frame.unsqueeze(0))
+        preds = net(batch)
+
+        dic_mask = get_mask(preds, frame, None, None, undo_transform=False)
+        arm_entry = ArmEntry(dic_mask)
+        
+        if flag_start == 0:
+            if arm_entry.check_start(): flag_start = 1
+        else:
+            if 'mouse' in dic_mask.keys() and 'center' in dic_mask.keys() and 'pA' in dic_mask.keys() and 'pB' in dic_mask.keys() and 'pC' in dic_mask.keys():
+                flag_locate = arm_entry.get_max_overlap()
+            else: continue
+        if flag_locate != 'center':
+            list_result.append(flag_locate)
+
+        img_numpy = frame.byte().cpu().numpy()
+        img_numpy = prep_display(img_numpy, flag_locate)
+
+        if out_path is None:
+            plt.imshow(img_numpy)
+            plt.title(path)
+            plt.show()
+        else:
+            cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
+        index +=1
+
+    vid.release()
+    cv2.destroyAllWindows()
+    return clear_list(list_result)
 
 
 def evaluate(net:Yolact, dataset, train_mode=False):
@@ -554,9 +608,11 @@ def evaluate(net:Yolact, dataset, train_mode=False):
     elif args.video is not None:
         if ':' in args.video:
             inp, out = args.video.split(':')
-            evalvideo(net, inp, out)
+            # evalvideo(net, inp, out)
+            log_video(net, inp, out)
         else:
-            evalvideo(net, args.video)
+            # evalvideo(net, args.video)
+            log_video(net, args.video)
         return
 
     frame_times = MovingAverage()
