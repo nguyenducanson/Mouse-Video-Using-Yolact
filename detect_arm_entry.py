@@ -141,6 +141,14 @@ def prep_coco_cats():
         coco_cats_inv[coco_cat_id] = transformed_cat_id
 
 
+def order_port(list_port):
+    min_x_index = np.argmin([np.min(list_port[0], axis=0)[0], np.min(list_port[1], axis=0)[0], np.min(list_port[2], axis=0)[0]])
+    min_y_index = np.argmin([np.min(list_port[0], axis=0)[1], np.min(list_port[1], axis=0)[1], np.min(list_port[2], axis=0)[1]])
+    max_y_index = np.argmax([np.max(list_port[0], axis=0)[1], np.max(list_port[1], axis=0)[1], np.max(list_port[2], axis=0)[1]])
+    list_result = [list_port[min_x_index], list_port[min_y_index], list_port[max_y_index]]
+    return list_result
+
+
 def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_alpha=0.45, fps_str=''):
     """
     Note: If undo_transform=False then im_h and im_w are allowed to be None.
@@ -162,12 +170,9 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
 
     with timer.env('Copy'):
         dic_mask = {}
-        list_port = ['pA','pB','pC']
+        list_port = []
         idx = t[1].argsort(0, descending=True)[:args.top_k]
-        
-        # if cfg.eval_mask_branch:
-        #     # Masks are drawn on the GPU, so don't copy
-        #     masks = t[3][idx]
+
         classes, scores, boxes, masks = [x[idx].cpu().numpy() for x in t]
 
         if len(classes) > 5: pass
@@ -176,7 +181,7 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
           for i, clas in enumerate(classes):
               if clas == 0:
                 solutions = np.argwhere(masks[i] != 0)
-                dic_mask[list_port[flag]] = solutions
+                list_port.append(solutions)
                 flag += 1
                 if flag == 3:
                   break
@@ -187,17 +192,27 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
                 solutions = np.argwhere(masks[i] != 0)
                 dic_mask['mouse'] = solutions
 
+        if len(list_port) == 3:
+            list_port_ = order_port(list_port)
+            dic_mask['pA'] = list_port_[0]
+            dic_mask['pB'] = list_port_[1]
+            dic_mask['pC'] = list_port_[2]
+
     return dic_mask
 
 
-def prep_display(img, max_score_label):
-    # for k,v in dic_mask.items():
+def prep_display(img, max_score_label, dic_mask):
+    # for k, v in dic_mask.items():
     #     if k == 'mouse':
     #         new_image = cv2.polylines(img, [v], True, (0,0,255), 1)
+    #         cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 255, 255), 2)
     #     elif k == 'center':
     #         new_image = cv2.polylines(img, [v], True, (0,255,255), 1)
-    #     else: new_image = cv2.polylines(img, [v], True, (0,255,0), 1)
-    new_image = cv2.putText(img, max_score_label, (200,200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0,0,255), 2)
+    #         cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 0, 255), 2)
+    #     else:
+    #         new_image = cv2.polylines(img, [v], True, (0,255,0), 1)
+    #         cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 255, 0), 2)
+    new_image = cv2.putText(img, max_score_label, (200, 200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0,0,255), 2)
     return new_image
 
 
@@ -252,10 +267,7 @@ def evalimage(net:Yolact, path:str, save_path:str=None):
     arm_entry = ArmEntry(dic_mask)
 
     if 'mouse' in dic_mask.keys() and 'center' in dic_mask.keys() and 'pA' in dic_mask.keys() and 'pB' in dic_mask.keys() and 'pC' in dic_mask.keys():
-        img_numpy = prep_display(img_numpy, arm_entry.get_max_overlap())
-    
-    # if save_path is None:
-    #     img_numpy = img_numpy[:, :, (2, 1, 0)]
+        img_numpy = prep_display(img_numpy, arm_entry.get_max_overlap(), dic_mask)
 
     if save_path is None:
         plt.imshow(img_numpy)
@@ -369,11 +381,11 @@ def evalvideo(net:Yolact, path:str, out_path:str=None):
         with torch.no_grad():
             frame, preds = inp
             dic_mask =  get_mask(preds, frame, None, None, undo_transform=False, class_color=True, fps_str=fps_str)
-
+            arm_entry = ArmEntry(dic_mask)
             if not 'mouse' in dic_mask.keys() or not 'center' in dic_mask.keys() or not 'pA' in dic_mask.keys() or not 'pB' in dic_mask.keys() or not 'pC' in dic_mask.keys():
                 return frame
             img_numpy = frame.byte().cpu().numpy()
-            return prep_display(img_numpy, get_max_overlap(get_overlap(dic_mask)))
+            return prep_display(img_numpy, arm_entry.get_max_overlap(), dic_mask)
 
     frame_buffer = Queue()
     video_fps = 0
@@ -573,7 +585,7 @@ def log_video(net:Yolact, path:str, out_path:str=None):
             list_result.append(flag_locate)
 
         img_numpy = frame.byte().cpu().numpy()
-        img_numpy = prep_display(img_numpy, flag_locate)
+        img_numpy = prep_display(img_numpy, flag_locate, dic_mask)
 
         if out_path is None:
             plt.imshow(img_numpy)
@@ -777,20 +789,3 @@ if __name__ == '__main__':
             net = net.cuda()
 
         evaluate(net, dataset)
-
-
-        # frame = torch.from_numpy(cv2.imread(args.image)).cuda().float()
-        # batch = FastBaseTransform()(frame.unsqueeze(0))
-        # preds = net(batch)
-
-        # dic_mask = get_mask(preds, frame, None, None, undo_transform=False)
-        # print(get_overlap(dic_mask))
-        
-        # img_numpy = frame.byte().cpu().numpy()
-
-        # layout, new_image = get_outline(img_numpy, dic_mask)
-        # with open("out_image/b.json", 'w') as outfile:
-        #     json.dump(layout, outfile)
-        # save_path = 'out_image/c.jpg'
-        # cv2.imwrite(save_path, new_image)
-        # print(dic_mask)

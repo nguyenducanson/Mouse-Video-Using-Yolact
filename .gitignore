@@ -79,6 +79,7 @@ celerybeat-schedule
 .env
 
 # virtualenv
+yolact_env/
 venv/
 ENV/
 
@@ -105,6 +106,9 @@ dev.ipynb
 
 # not ready
 videos/
+video/
+out_image/
+out_video/
 templates/
 data/ssd_dataloader.py
 data/datasets/
