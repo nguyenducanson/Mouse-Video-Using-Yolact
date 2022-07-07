@@ -558,6 +558,8 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         vid = cv2.VideoCapture(path)
     flag_start = 0
     flag_locate = "center"
+    flag_center = True
+    flag_port = False
     index = 0
     while True:
         ret, frame = vid.read()
@@ -576,11 +578,24 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         arm_entry = ArmEntry(dic_mask)
         
         if flag_start == 0:
-            if arm_entry.check_start(): flag_start = 1
+            if arm_entry.check_start():
+                flag_start = 1
+                flag_center = True
+                flag_port = False
         else:
             if 'mouse' in dic_mask.keys() and 'center' in dic_mask.keys() and 'pA' in dic_mask.keys() and 'pB' in dic_mask.keys() and 'pC' in dic_mask.keys():
-                flag_locate = arm_entry.get_max_overlap()
-            else: continue
+                if flag_center:
+                    flag_locate, port = arm_entry.check_flag_center()
+                    if port:
+                        flag_center = False
+                        flag_port = True
+                if flag_port:
+                    flag_locate, center = arm_entry.check_flag_center()
+                    if center:
+                        flag_center = True
+                        flag_port = False
+            else:
+                continue
         if flag_locate != 'center':
             list_result.append(flag_locate)
 
