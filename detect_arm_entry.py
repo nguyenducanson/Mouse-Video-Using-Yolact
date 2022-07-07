@@ -1,4 +1,5 @@
 from data import COCODetection, get_label_map, MEANS, COLORS
+from train import args
 from yolact import Yolact
 from utils.augmentations import BaseTransform, FastBaseTransform, Resize
 from utils.functions import MovingAverage, ProgressBar
@@ -202,16 +203,18 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
 
 
 def prep_display(img, max_score_label, dic_mask):
-    # for k, v in dic_mask.items():
-    #     if k == 'mouse':
-    #         new_image = cv2.polylines(img, [v], True, (0,0,255), 1)
-    #         cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 255, 255), 2)
-    #     elif k == 'center':
-    #         new_image = cv2.polylines(img, [v], True, (0,255,255), 1)
-    #         cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 0, 255), 2)
-    #     else:
-    #         new_image = cv2.polylines(img, [v], True, (0,255,0), 1)
-    #         cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 255, 0), 2)
+    if args.display_masks:
+        for k, v in dic_mask.items():
+            if k == 'mouse':
+                new_image = cv2.polylines(img, [v], True, (0,0,255), 1)
+                cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 255, 255), 2)
+            elif k == 'center':
+                new_image = cv2.polylines(img, [v], True, (0,255,255), 1)
+                cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 0, 255), 2)
+            else:
+                new_image = cv2.polylines(img, [v], True, (0,255,0), 1)
+                cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 255, 0), 2)
+
     new_image = cv2.putText(img, max_score_label, (200, 200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0,0,255), 2)
     return new_image
 
