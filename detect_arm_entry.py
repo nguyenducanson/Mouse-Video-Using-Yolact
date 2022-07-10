@@ -196,8 +196,8 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
         if len(list_port) == 3:
             list_port_ = order_port(list_port)
             dic_mask['pA'] = list_port_[0]
-            dic_mask['pB'] = list_port_[1]
-            dic_mask['pC'] = list_port_[2]
+            dic_mask['pC'] = list_port_[1]
+            dic_mask['pB'] = list_port_[2]
 
     return dic_mask
 
