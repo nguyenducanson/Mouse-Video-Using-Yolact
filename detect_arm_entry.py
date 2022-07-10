@@ -1,5 +1,4 @@
 from data import COCODetection, get_label_map, MEANS, COLORS
-from train import args
 from yolact import Yolact
 from utils.augmentations import BaseTransform, FastBaseTransform, Resize
 from utils.functions import MovingAverage, ProgressBar
@@ -53,6 +52,7 @@ def parse_args(argv=None):
                         help='Whether to use a faster, but not entirely correct version of NMS.')
     parser.add_argument('--cross_class_nms', default=False, type=str2bool,
                         help='Whether compute NMS cross-class or per-class.')
+    parser.add_argument('--flip', default=False, type=str2bool, help='flip with input')
     parser.add_argument('--display_masks', default=True, type=str2bool,
                         help='Whether or not to display masks over bounding boxes')
     parser.add_argument('--display_bboxes', default=True, type=str2bool,
@@ -196,8 +196,8 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
         if len(list_port) == 3:
             list_port_ = order_port(list_port)
             dic_mask['pA'] = list_port_[0]
-            dic_mask['pB'] = list_port_[1]
-            dic_mask['pC'] = list_port_[2]
+            dic_mask['pC'] = list_port_[1]
+            dic_mask['pB'] = list_port_[2]
 
     return dic_mask
 
@@ -260,6 +260,8 @@ def clear_list(list_label):
 
 def evalimage(net:Yolact, path:str, save_path:str=None):
     frame = cv2.imread(path)
+    if args.flip:
+        frame = cv2.flip(frame, 1)
     frame_clip = cv2.flip(frame, 1)
     frame_rotate = cv2.rotate(frame_clip, cv2.ROTATE_90_COUNTERCLOCKWISE)
     frame_rotate = torch.from_numpy(frame_rotate).cuda().float()
@@ -324,6 +326,9 @@ def log_video(net:Yolact, path:str, out_path:str=None):
             vid.release()
             cv2.destroyAllWindows()
             break
+
+        if args.flip:
+            frame = cv2.flip(frame, 1)
         frame_flip = cv2.flip(frame, 1)
         frame_rotate = cv2.rotate(frame_flip, cv2.ROTATE_90_COUNTERCLOCKWISE)
         frame_rotate = torch.from_numpy(frame_rotate).cuda().float()
@@ -358,11 +363,7 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         img_numpy = frame
         img_numpy = prep_display(img_numpy, flag_locate, dic_mask)
 
-        if out_path is None:
-            plt.imshow(img_numpy)
-            plt.title(path)
-            plt.show()
-        else:
+        if out_path is not None:
             cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
         index += 1
 
@@ -391,9 +392,9 @@ def evaluate(net:Yolact, dataset, train_mode=False):
     elif args.video is not None:
         if ':' in args.video:
             inp, out = args.video.split(':')
-            log_video(net, inp, out)
+            print(log_video(net, inp, out))
         else:
-            log_video(net, args.video)
+            print(log_video(net, args.video))
         return
 
 
