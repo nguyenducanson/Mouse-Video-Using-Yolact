@@ -33,30 +33,14 @@ import cv2
 
 class Mouse_Detection(object):
 
-    def __int__(self):
-
+    def __init__(self):
         self.score_threshold = 0.05
         self.top_k = 5
 
-        self.iou_thresholds = [x / 100 for x in range(50, 100, 5)]
-        self.coco_cats = {}  # Call prep_coco_cats to fill this
-        self.coco_cats_inv = {}
-        self.color_cache = defaultdict(lambda: {})
-
         self.config = "yolact_resnet50_mouse_config"
         self.trained_model = "./app/weights/yolact_v1_resnet50_mouse_123_10000.pth"
-        self.net = Yolact()
-        set_cfg(self.config)
 
-    def _prep_coco_cats(self):
-        """ Prepare inverted table for category id lookup given a coco cats object. """
-        for coco_cat_id, transformed_cat_id_p1 in get_label_map().items():
-            transformed_cat_id = transformed_cat_id_p1 - 1
-            self.coco_cats[transformed_cat_id] = coco_cat_id
-            self.coco_cats_inv[coco_cat_id] = transformed_cat_id
-
-    @staticmethod
-    def _order_port(list_port):
+    def _order_port(self, list_port):
         min_x_index = np.argmin(
             [np.min(list_port[0], axis=0)[0], np.min(list_port[1], axis=0)[0], np.min(list_port[2], axis=0)[0]])
         min_y_index = np.argmin(
@@ -130,7 +114,7 @@ class Mouse_Detection(object):
                 i += 1
         return list_result
 
-    def _log_video(self, video, flip=False):
+    def _log_video(self, net, video, flip=False):
         # If the path is a digit, parse it as a webcam index
         is_webcam = video.isdigit()
         list_result = []
@@ -163,7 +147,7 @@ class Mouse_Detection(object):
             frame_rotate = cv2.rotate(frame_flip, cv2.ROTATE_90_COUNTERCLOCKWISE)
             frame_rotate = torch.from_numpy(frame_rotate).cuda().float()
             batch = FastBaseTransform()(frame_rotate.unsqueeze(0))
-            preds = self.net(batch)
+            preds = net(batch)
 
             dic_mask = self._get_mask(preds, frame_rotate, None, None, undo_transform=False)
             arm_entry = ArmEntry(dic_mask)
@@ -196,24 +180,27 @@ class Mouse_Detection(object):
         cv2.destroyAllWindows()
         return self._clear_list(list_result)
 
-    def _detection(self, video, flip=False):
-        self.net.detect.use_fast_nms = True
-        self.net.detect.use_cross_class_nms = False
+    def _detection(self, net, video, flip=False):
+        net.detect.use_fast_nms = True
+        net.detect.use_cross_class_nms = False
         cfg.mask_proto_debug = False
-        return self._log_video(video, flip)
+        return self._log_video(net, video, flip)
 
     def inference(self, video, flip=False):
-        if video is not None:
-            dataset = COCODetection(cfg.dataset.valid_images, cfg.dataset.valid_info,
-                                    transform=BaseTransform(), has_gt=cfg.dataset.has_gt)
-            self._prep_coco_cats()
-        else:
-            dataset = None
+        set_cfg(self.config)
 
-        print('Loading model...', end='')
-        self.net.load_weights(self.trained_model)
-        self.net.eval()
-        print('Done.')
-        self.net.cuda()
+        with torch.no_grad():
+            if not os.path.exists('results'):
+                os.makedirs('results')
 
-        return self._detection(video, flip)
+            cudnn.fastest = True
+            torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
+            print('Loading model...', end='')
+            net = Yolact()
+            net.load_weights(self.trained_model)
+            net.eval()
+            print('Done.')
+            net = net.cuda()
+
+            return self._detection(net, video, flip)
