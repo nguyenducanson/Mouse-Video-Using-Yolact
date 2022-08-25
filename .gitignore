@@ -136,8 +136,8 @@ data/cityscapes
 ssd.pytorch/
 
 # some datasets
-data/train
-data/val
+data/train/images
+data/val/images
 data/VOCdevkit/
 data/coco/images/
 data/coco/annotations/
