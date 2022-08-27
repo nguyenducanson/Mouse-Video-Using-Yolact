@@ -38,7 +38,7 @@ class Mouse_Detection(object):
         self.top_k = 5
 
         self.config = "yolact_resnet50_mouse_config"
-        self.trained_model = "./app/weights/yolact_v1_resnet50_mouse_123_10000.pth"
+        self.trained_model = "./weights/yolact_v1_resnet50_mouse_123_10000.pth"
 
     def _order_port(self, list_port):
         min_x_index = np.argmin(
