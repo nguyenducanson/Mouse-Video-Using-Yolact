@@ -318,6 +318,7 @@ def log_video(net:Yolact, path:str, out_path:str=None):
     flag_center = True
     flag_port = False
     index = 0
+    start_time = time.time()
     while True:
         ret, frame = vid.read()
         if not ret:
@@ -366,6 +367,10 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         if out_path is not None:
             cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
         index += 1
+
+        end_time = time.time() - start_time
+        if end_time >= 300:
+            break
 
     vid.release()
     cv2.destroyAllWindows()

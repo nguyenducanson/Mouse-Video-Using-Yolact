@@ -132,6 +132,7 @@ class Mouse_Detection(object):
         flag_center = True
         flag_port = False
         index = 0
+        start_time = time.time()
         while True:
             ret, frame = vid.read()
             if not ret:
@@ -175,6 +176,10 @@ class Mouse_Detection(object):
             if flag_locate != 'center':
                 list_result.append(flag_locate)
             index += 1
+
+            end_time = time.time() - start_time
+            if end_time >= 300:
+                break
 
         vid.release()
         cv2.destroyAllWindows()
