@@ -178,8 +178,8 @@ class Mouse_Detection(object):
             index += 1
 
             end_time = time.time() - start_time
-            if end_time >= 300:
-                break
+            # if end_time >= 300:
+            #    break
 
         vid.release()
         cv2.destroyAllWindows()
