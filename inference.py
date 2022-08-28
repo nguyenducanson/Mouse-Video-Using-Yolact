@@ -132,7 +132,8 @@ class Mouse_Detection(object):
         flag_center = True
         flag_port = False
         index = 0
-        start_time = time.time()
+        start_time = 0
+
         while True:
             ret, frame = vid.read()
             if not ret:
@@ -141,6 +142,9 @@ class Mouse_Detection(object):
                 vid.release()
                 cv2.destroyAllWindows()
                 break
+
+            # count the number of frames
+            fps = vid.get(cv2.CAP_PROP_FPS)
 
             if flip:
                 frame = cv2.flip(frame, 1)
@@ -155,6 +159,8 @@ class Mouse_Detection(object):
 
             if flag_start == 0:
                 if arm_entry.check_start():
+                    start_time = index / fps
+                    print("Start:", round(start_time, 2))
                     flag_start = 1
                     flag_center = True
                     flag_port = False
@@ -177,9 +183,11 @@ class Mouse_Detection(object):
                 list_result.append(flag_locate)
             index += 1
 
-            end_time = time.time() - start_time
-            # if end_time >= 300:
-            #    break
+            # calculate duration of the video
+            end_time = index / fps - start_time
+            if flag_start==1 and end_time >= 300:
+                print("End:", round(end_time,2))
+                break
 
         vid.release()
         cv2.destroyAllWindows()
