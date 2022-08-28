@@ -331,7 +331,6 @@ def log_video(net:Yolact, path:str, out_path:str=None):
             
         # count the number of frames
         fps = vid.get(cv2.CAP_PROP_FPS)
-        #print("frame:", index, "fps:", fps)
 
         if args.flip:
             frame = cv2.flip(frame, 1)
@@ -377,7 +376,7 @@ def log_video(net:Yolact, path:str, out_path:str=None):
          
         # calculate duration of the video
         end_time = index / fps - start_time
-        if flag_start==1 and end_time >= 15:
+        if flag_start==1 and end_time >= 300:
             print("End:", round(end_time,2))
             break
 
