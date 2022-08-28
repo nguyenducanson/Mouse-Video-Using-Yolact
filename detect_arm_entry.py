@@ -318,7 +318,8 @@ def log_video(net:Yolact, path:str, out_path:str=None):
     flag_center = True
     flag_port = False
     index = 0
-    start_time = time.time()
+    start_time = 0
+
     while True:
         ret, frame = vid.read()
         if not ret:
@@ -327,6 +328,10 @@ def log_video(net:Yolact, path:str, out_path:str=None):
             vid.release()
             cv2.destroyAllWindows()
             break
+            
+        # count the number of frames
+        fps = vid.get(cv2.CAP_PROP_FPS)
+        #print("frame:", index, "fps:", fps)
 
         if args.flip:
             frame = cv2.flip(frame, 1)
@@ -341,6 +346,8 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         
         if flag_start == 0:
             if arm_entry.check_start():
+                start_time = index / fps
+                print("Start:", round(start_time, 2))
                 flag_start = 1
                 flag_center = True
                 flag_port = False
@@ -367,9 +374,11 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         if out_path is not None:
             cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
         index += 1
-
-        end_time = time.time() - start_time
-        if end_time >= 300:
+         
+        # calculate duration of the video
+        end_time = index / fps - start_time
+        if flag_start==1 and end_time >= 15:
+            print("End:", round(end_time,2))
             break
 
     vid.release()
