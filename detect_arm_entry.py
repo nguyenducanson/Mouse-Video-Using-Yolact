@@ -142,6 +142,24 @@ def prep_coco_cats():
         coco_cats_inv[coco_cat_id] = transformed_cat_id
 
 
+def write_video(input, output, fps: int = 0, frame_size: tuple = (), fourcc: str = "H264"):
+    vidcap = cv2.VideoCapture(input)
+    if not fps:
+        fps = round(vidcap.get(cv2.CAP_PROP_FPS))
+    _, arr = vidcap.read()
+    if not frame_size:
+        height, width, _ = arr.shape
+        frame_size = width, height
+    writer = cv2.VideoWriter(
+        output,
+        apiPreference=0,
+        fourcc=cv2.VideoWriter_fourcc(*fourcc),
+        fps=fps,
+        frameSize=frame_size
+    )
+    return writer
+
+
 def order_port(list_port):
     min_x_index = np.argmin([np.min(list_port[0], axis=0)[0], np.min(list_port[1], axis=0)[0], np.min(list_port[2], axis=0)[0]])
     min_y_index = np.argmin([np.min(list_port[0], axis=0)[1], np.min(list_port[1], axis=0)[1], np.min(list_port[2], axis=0)[1]])
@@ -320,6 +338,9 @@ def log_video(net:Yolact, path:str, out_path:str=None):
     index = 0
     start_time = 0
 
+    if out_path is not None:
+        writer = write_video(path, out_path)
+
     while True:
         ret, frame = vid.read()
         if not ret:
@@ -371,7 +392,8 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         img_numpy = prep_display(img_numpy, flag_locate, dic_mask)
 
         if out_path is not None:
-            cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
+            # cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
+            writer.write(img_numpy)
         index += 1
          
         # calculate duration of the video
@@ -381,6 +403,8 @@ def log_video(net:Yolact, path:str, out_path:str=None):
             break
 
     vid.release()
+    if out_path is not None:
+        writer.release()
     cv2.destroyAllWindows()
     return clear_list(list_result)
 
