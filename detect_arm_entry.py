@@ -142,18 +142,16 @@ def prep_coco_cats():
         coco_cats_inv[coco_cat_id] = transformed_cat_id
 
 
-def write_video(input, output, fps: int = 0, frame_size: tuple = (), fourcc: str = "H264"):
-    vidcap = cv2.VideoCapture(input)
-    if not fps:
+def write_video(input, output, fps: int = 0, frame_size: tuple = (), ):
+    if not fps or frame_size:
+        vidcap = cv2.VideoCapture(input)
         fps = round(vidcap.get(cv2.CAP_PROP_FPS))
-    _, arr = vidcap.read()
-    if not frame_size:
+        _, arr = vidcap.read()
         height, width, _ = arr.shape
         frame_size = width, height
     writer = cv2.VideoWriter(
         output,
-        apiPreference=0,
-        fourcc=cv2.VideoWriter_fourcc(*fourcc),
+        cv2.VideoWriter_fourcc('m', 'p', '4', 'v'),
         fps=fps,
         frameSize=frame_size
     )
@@ -337,7 +335,10 @@ def log_video(net:Yolact, path:str, out_path:str=None):
     flag_port = False
     index = 0
     start_time = 0
-
+    
+    # count the number of frames
+    fps = vid.get(cv2.CAP_PROP_FPS)
+    
     if out_path is not None:
         writer = write_video(path, out_path)
 
@@ -350,8 +351,7 @@ def log_video(net:Yolact, path:str, out_path:str=None):
             cv2.destroyAllWindows()
             break
             
-        # count the number of frames
-        fps = vid.get(cv2.CAP_PROP_FPS)
+        
 
         if args.flip:
             frame = cv2.flip(frame, 1)
@@ -392,13 +392,13 @@ def log_video(net:Yolact, path:str, out_path:str=None):
         img_numpy = prep_display(img_numpy, flag_locate, dic_mask)
 
         if out_path is not None:
-            # cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
             writer.write(img_numpy)
+            # cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
         index += 1
          
         # calculate duration of the video
         end_time = index / fps - start_time
-        if flag_start==1 and end_time >= 300:
+        if flag_start==1 and end_time >= 120:
             print("End:", round(end_time,2))
             break
 
