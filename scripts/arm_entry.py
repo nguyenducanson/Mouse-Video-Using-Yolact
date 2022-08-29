@@ -8,7 +8,7 @@ class ArmEntry:
     def check_start(self):
         if self._check_valid():
             list_score = self._get_overlap()  
-            if list_score.index(max(list_score)) == 0:
+            if list_score.index(max(list_score)) == 0 and max(list_score) != 0.0:
                 return True
             return False
         return False
