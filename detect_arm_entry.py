@@ -1,3 +1,4 @@
+from tabnanny import check
 from data import COCODetection, get_label_map, MEANS, COLORS
 from yolact import Yolact
 from utils.augmentations import BaseTransform, FastBaseTransform, Resize
@@ -5,6 +6,7 @@ from utils.functions import MovingAverage, ProgressBar
 from layers.box_utils import jaccard, center_size, mask_iou
 from utils import timer
 from utils.functions import SavePath
+from utils.file_utils import check_path_exists, check_file_extension
 from layers.output_utils import postprocess, undo_image_transformation
 from scripts.arm_entry import ArmEntry
 import pycocotools
@@ -274,9 +276,9 @@ def clear_list(list_label):
     return list_result
 
 
-def evalimage(net:Yolact, path:str, save_path:str=None):
+def evalimage(net:Yolact, path:str, save_path:str=None, flip:bool=False):
     frame = cv2.imread(path)
-    if args.flip:
+    if flip:
         frame = cv2.flip(frame, 1)
     frame_clip = cv2.flip(frame, 1)
     frame_rotate = cv2.rotate(frame_clip, cv2.ROTATE_90_COUNTERCLOCKWISE)
@@ -301,7 +303,7 @@ def evalimage(net:Yolact, path:str, save_path:str=None):
         cv2.imwrite(save_path, img_numpy)
 
 
-def evalimages(net:Yolact, input_folder:str, output_folder:str):
+def evalimages(net:Yolact, input_folder:str, output_folder:str, flip:bool=False):
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
 
@@ -312,12 +314,12 @@ def evalimages(net:Yolact, input_folder:str, output_folder:str):
         name = '.'.join(name.split('.')[:-1]) + '.png'
         out_path = os.path.join(output_folder, name)
 
-        evalimage(net, path, out_path)
+        evalimage(net, path, out_path, flip=flip)
         print(path + ' -> ' + out_path)
     print('Done.')
 
 
-def log_video(net:Yolact, path:str, out_path:str=None):
+def log_video(net:Yolact, path:str, out_path:str=None, flip:bool=False):
     # If the path is a digit, parse it as a webcam index
     is_webcam = path.isdigit()
     list_result = []
@@ -353,7 +355,7 @@ def log_video(net:Yolact, path:str, out_path:str=None):
             
         
 
-        if args.flip:
+        if flip:
             frame = cv2.flip(frame, 1)
         frame_flip = cv2.flip(frame, 1)
         frame_rotate = cv2.rotate(frame_flip, cv2.ROTATE_90_COUNTERCLOCKWISE)
@@ -409,7 +411,7 @@ def log_video(net:Yolact, path:str, out_path:str=None):
     return clear_list(list_result)
 
 
-def evaluate(net:Yolact, dataset, train_mode=False):
+def evaluate(net:Yolact, dataset, train_mode=False, flip:bool=False):
     net.detect.use_fast_nms = args.fast_nms
     net.detect.use_cross_class_nms = args.cross_class_nms
     cfg.mask_proto_debug = args.mask_proto_debug
@@ -418,20 +420,31 @@ def evaluate(net:Yolact, dataset, train_mode=False):
     if args.image is not None:
         if ':' in args.image:
             inp, out = args.image.split(':')
-            evalimage(net, inp, out)
+            evalimage(net, inp, out, flip=flip)
         else:
-            evalimage(net, args.image)
+            evalimage(net, args.image, flip=flip)
         return
     elif args.images is not None:
         inp, out = args.images.split(':')
-        evalimages(net, inp, out)
+        evalimages(net, inp, out, flip=flip)
         return
     elif args.video is not None:
         if ':' in args.video:
             inp, out = args.video.split(':')
-            print(log_video(net, inp, out))
+            if check_path_exists(inp):
+                if check_file_extension(inp) == 'mov':
+                    flip = True
+                elif check_file_extension(inp) == 'mp4':
+                    flip = False
+                else:
+                    print('Not support')
+                    return
+            else:
+                print('Not exits file')
+                return
+            print(log_video(net, inp, out, flip=flip))
         else:
-            print(log_video(net, args.video))
+            print(log_video(net, args.video, flip=flip))
         return
 
 
@@ -485,4 +498,4 @@ if __name__ == '__main__':
         if args.cuda:
             net = net.cuda()
 
-        evaluate(net, dataset)
+        evaluate(net, dataset, flip=args.flip)
