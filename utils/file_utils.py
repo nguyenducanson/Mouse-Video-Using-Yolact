@@ -21,8 +21,8 @@ def check_splitext_path(path):
 
 
 def check_file_extension(path):
-    mov = ['mov', 'MOV']
-    mp4 = ['mp4', 'MP4']
+    mov = ['.mov', '.MOV']
+    mp4 = ['.mp4', '.MP4']
     file_extension = check_splitext_path(path)
     if file_extension in mp4:
         return 'mp4'
