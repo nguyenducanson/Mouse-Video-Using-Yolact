@@ -400,7 +400,7 @@ def log_video(net:Yolact, path:str, out_path:str=None, flip:bool=False):
          
         # calculate duration of the video
         end_time = index / fps - start_time
-        if flag_start==1 and end_time >= 120:
+        if flag_start==1 and end_time >= 15:
             print("End:", round(end_time,2))
             break
 
@@ -433,9 +433,9 @@ def evaluate(net:Yolact, dataset, train_mode=False, flip:bool=False):
             inp, out = args.video.split(':')
             if check_path_exists(inp):
                 if check_file_extension(inp) == 'mov':
-                    flip = True
+                    flip = not(flip)
                 elif check_file_extension(inp) == 'mp4':
-                    flip = False
+                    flip = flip
                 else:
                     print('Not support')
                     return
