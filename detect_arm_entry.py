@@ -154,11 +154,15 @@ def write_video(input, output, fps: int = 0, frame_size: tuple = (), ):
     return writer
 
 
-def check_flip(input):
+def check_flip(input, flip):
     vidcap = cv2.VideoCapture(input)
     _, arr = vidcap.read()
     left_right_object = left_right(arr)
     result = left_right_object.classify()
+
+    if flip:
+        result = not(result)
+
     return result
 
 
@@ -351,7 +355,7 @@ def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False):
     if out_path is not None:
         writer = write_video(path, out_path)
 
-    if not check_flip(path):
+    if not check_flip(path, flip):
         flip = not (flip)
 
     while True:
