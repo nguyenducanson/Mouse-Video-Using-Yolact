@@ -1,36 +1,26 @@
-from tabnanny import check
-from data import COCODetection, get_label_map, MEANS, COLORS
-from yolact import Yolact
-from utils.augmentations import BaseTransform, FastBaseTransform, Resize
-from utils.functions import MovingAverage, ProgressBar
-from layers.box_utils import jaccard, center_size, mask_iou
-from utils import timer
-from utils.functions import SavePath
-from utils.file_utils import check_path_exists, check_file_extension
-from layers.output_utils import postprocess, undo_image_transformation
-from scripts.arm_entry import ArmEntry
-import pycocotools
+import argparse
+import os
+import random
+from collections import defaultdict
+from pathlib import Path
 
-from data import cfg, set_cfg, set_dataset
-
+import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
-from torch.autograd import Variable
-import argparse
-import time
-import random
-import cProfile
-import pickle
-import json
-import os
-from collections import defaultdict
-from pathlib import Path
-from collections import OrderedDict
-from PIL import Image
 
-import matplotlib.pyplot as plt
-import cv2
+from data import COCODetection, get_label_map
+from data import cfg, set_cfg, set_dataset
+from layers.output_utils import postprocess, undo_image_transformation
+from left_right_classify.left_right_class import left_right
+from scripts.arm_entry import ArmEntry
+from utils import timer
+from utils.augmentations import BaseTransform, FastBaseTransform
+from utils.file_utils import check_path_exists, check_file_extension
+from utils.functions import SavePath
+from yolact import Yolact
+
 
 def str2bool(v):
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
@@ -39,6 +29,7 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
@@ -54,7 +45,6 @@ def parse_args(argv=None):
                         help='Whether to use a faster, but not entirely correct version of NMS.')
     parser.add_argument('--cross_class_nms', default=False, type=str2bool,
                         help='Whether compute NMS cross-class or per-class.')
-    parser.add_argument('--flip', default=False, type=str2bool, help='flip with input')
     parser.add_argument('--display_masks', default=True, type=str2bool,
                         help='Whether or not to display masks over bounding boxes')
     parser.add_argument('--display_bboxes', default=True, type=str2bool,
@@ -118,8 +108,10 @@ def parse_args(argv=None):
     parser.add_argument('--emulate_playback', default=False, dest='emulate_playback', action='store_true',
                         help='When saving a video, emulate the framerate that you\'d get running in real-time mode.')
 
-    parser.set_defaults(no_bar=False, display=False, resume=False, output_coco_json=False, output_web_json=False, shuffle=False,
-                        benchmark=False, no_sort=False, no_hash=False, mask_proto_debug=False, crop=True, detect=False, display_fps=False,
+    parser.set_defaults(no_bar=False, display=False, resume=False, output_coco_json=False, output_web_json=False,
+                        shuffle=False,
+                        benchmark=False, no_sort=False, no_hash=False, mask_proto_debug=False, crop=True, detect=False,
+                        display_fps=False,
                         emulate_playback=False)
 
     global args
@@ -127,14 +119,16 @@ def parse_args(argv=None):
 
     if args.output_web_json:
         args.output_coco_json = True
-    
+
     if args.seed is not None:
         random.seed(args.seed)
 
+
 iou_thresholds = [x / 100 for x in range(50, 100, 5)]
-coco_cats = {} # Call prep_coco_cats to fill this
+coco_cats = {}  # Call prep_coco_cats to fill this
 coco_cats_inv = {}
 color_cache = defaultdict(lambda: {})
+
 
 def prep_coco_cats():
     """ Prepare inverted table for category id lookup given a coco cats object. """
@@ -160,10 +154,21 @@ def write_video(input, output, fps: int = 0, frame_size: tuple = (), ):
     return writer
 
 
+def check_flip(input):
+    vidcap = cv2.VideoCapture(input)
+    _, arr = vidcap.read()
+    left_right_object = left_right(arr)
+    result = left_right_object.classify()
+    return result
+
+
 def order_port(list_port):
-    min_x_index = np.argmin([np.min(list_port[0], axis=0)[0], np.min(list_port[1], axis=0)[0], np.min(list_port[2], axis=0)[0]])
-    min_y_index = np.argmin([np.min(list_port[0], axis=0)[1], np.min(list_port[1], axis=0)[1], np.min(list_port[2], axis=0)[1]])
-    max_y_index = np.argmax([np.max(list_port[0], axis=0)[1], np.max(list_port[1], axis=0)[1], np.max(list_port[2], axis=0)[1]])
+    min_x_index = np.argmin(
+        [np.min(list_port[0], axis=0)[0], np.min(list_port[1], axis=0)[0], np.min(list_port[2], axis=0)[0]])
+    min_y_index = np.argmin(
+        [np.min(list_port[0], axis=0)[1], np.min(list_port[1], axis=0)[1], np.min(list_port[2], axis=0)[1]])
+    max_y_index = np.argmax(
+        [np.max(list_port[0], axis=0)[1], np.max(list_port[1], axis=0)[1], np.max(list_port[2], axis=0)[1]])
     list_result = [list_port[min_x_index], list_port[min_y_index], list_port[max_y_index]]
     return list_result
 
@@ -178,13 +183,13 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
     else:
         img_gpu = img / 255.0
         h, w, _ = img.shape
-    
+
     with timer.env('Postprocess'):
         save = cfg.rescore_bbox
         cfg.rescore_bbox = True
-        t = postprocess(dets_out, w, h, visualize_lincomb = args.display_lincomb,
-                                        crop_masks        = args.crop,
-                                        score_threshold   = args.score_threshold)
+        t = postprocess(dets_out, w, h, visualize_lincomb=args.display_lincomb,
+                        crop_masks=args.crop,
+                        score_threshold=args.score_threshold)
         cfg.rescore_bbox = save
 
     with timer.env('Copy'):
@@ -194,22 +199,23 @@ def get_mask(dets_out, img, h, w, undo_transform=True, class_color=False, mask_a
 
         classes, scores, boxes, masks = [x[idx].cpu().numpy() for x in t]
 
-        if len(classes) > 5: pass
+        if len(classes) > 5:
+            pass
         else:
-          flag = 0
-          for i, clas in enumerate(classes):
-              if clas == 0:
-                solutions = np.argwhere(masks[i] != 0)
-                list_port.append(solutions)
-                flag += 1
-                if flag == 3:
-                  break
-              elif clas == 1:
-                solutions = np.argwhere(masks[i] != 0)
-                dic_mask['center'] = solutions
-              elif clas == 2:
-                solutions = np.argwhere(masks[i] != 0)
-                dic_mask['mouse'] = solutions
+            flag = 0
+            for i, clas in enumerate(classes):
+                if clas == 0:
+                    solutions = np.argwhere(masks[i] != 0)
+                    list_port.append(solutions)
+                    flag += 1
+                    if flag == 3:
+                        break
+                elif clas == 1:
+                    solutions = np.argwhere(masks[i] != 0)
+                    dic_mask['center'] = solutions
+                elif clas == 2:
+                    solutions = np.argwhere(masks[i] != 0)
+                    dic_mask['mouse'] = solutions
 
         if len(list_port) == 3:
             list_port_ = order_port(list_port)
@@ -224,26 +230,26 @@ def prep_display(img, max_score_label, dic_mask):
     if args.display_masks:
         for k, v in dic_mask.items():
             if k == 'mouse':
-                new_image = cv2.polylines(img, [v], True, (0,0,255), 1)
+                new_image = cv2.polylines(img, [v], True, (0, 0, 255), 1)
                 cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 255, 255), 2)
             elif k == 'center':
-                new_image = cv2.polylines(img, [v], True, (0,255,255), 1)
+                new_image = cv2.polylines(img, [v], True, (0, 255, 255), 1)
                 cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 0, 255), 2)
             else:
-                new_image = cv2.polylines(img, [v], True, (0,255,0), 1)
+                new_image = cv2.polylines(img, [v], True, (0, 255, 0), 1)
                 cv2.putText(img, k, tuple(v[0]), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (255, 255, 0), 2)
 
-    new_image = cv2.putText(img, max_score_label, (200, 200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0,0,255), 2)
+    new_image = cv2.putText(img, max_score_label, (200, 200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 0, 255), 2)
     return new_image
 
 
-def  get_outline(img, mask):
+def get_outline(img, mask):
     dic_layout = {}
     black = np.ones(img.shape, dtype=np.uint8) * 0
 
-    for k,v in mask.items():
+    for k, v in mask.items():
         black_cp = black.copy()
-        new_image = cv2.polylines(black_cp, [v], True, (0,0,255), 1)
+        new_image = cv2.polylines(black_cp, [v], True, (0, 0, 255), 1)
         gray = cv2.cv2.cvtColor(new_image, cv2.COLOR_BGR2GRAY)
         cnts = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cnts = cnts[0] if len(cnts) == 2 else cnts[1]
@@ -253,30 +259,31 @@ def  get_outline(img, mask):
         # print(type(cnts))
     # print(dic_layout)
 
-    for k,v in dic_layout.items():
+    for k, v in dic_layout.items():
         # print(type(v))
         if k == 'mouse':
-            cv2.polylines(black, [np.array(v)], True, (0,0,255), 1)
+            cv2.polylines(black, [np.array(v)], True, (0, 0, 255), 1)
         elif k == 'center':
-            cv2.polylines(black, [np.array(v)], True, (255,0,0), 1)
+            cv2.polylines(black, [np.array(v)], True, (255, 0, 0), 1)
         else:
-            cv2.polylines(black, [np.array(v)], True, (0,255,0), 1)
+            cv2.polylines(black, [np.array(v)], True, (0, 255, 0), 1)
     return dic_layout, black
 
 
 def clear_list(list_label):
     list_result = [list_label[0]]
     i = j = 0
-    while i < len(list_label)-1:
-        if list_label[i+1] != list_result[j]:
-            list_result.append(list_label[i+1])
+    while i < len(list_label) - 1:
+        if list_label[i + 1] != list_result[j]:
+            list_result.append(list_label[i + 1])
             i += 1
             j += 1
-        else: i += 1
+        else:
+            i += 1
     return list_result
 
 
-def evalimage(net:Yolact, path:str, save_path:str=None, flip:bool=False):
+def evalimage(net: Yolact, path: str, save_path: str = None, flip: bool = False):
     frame = cv2.imread(path)
     if flip:
         frame = cv2.flip(frame, 1)
@@ -303,12 +310,12 @@ def evalimage(net:Yolact, path:str, save_path:str=None, flip:bool=False):
         cv2.imwrite(save_path, img_numpy)
 
 
-def evalimages(net:Yolact, input_folder:str, output_folder:str, flip:bool=False):
+def evalimages(net: Yolact, input_folder: str, output_folder: str, flip: bool = False):
     if not os.path.exists(output_folder):
         os.mkdir(output_folder)
 
     print()
-    for p in Path(input_folder).glob('*'): 
+    for p in Path(input_folder).glob('*'):
         path = str(p)
         name = os.path.basename(path)
         name = '.'.join(name.split('.')[:-1]) + '.png'
@@ -319,14 +326,14 @@ def evalimages(net:Yolact, input_folder:str, output_folder:str, flip:bool=False)
     print('Done.')
 
 
-def log_video(net:Yolact, path:str, out_path:str=None, flip:bool=False):
+def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False):
     # If the path is a digit, parse it as a webcam index
     is_webcam = path.isdigit()
     list_result = []
-    
+
     # If the input image size is constant, this make things faster (hence why we can use it in a video setting).
     cudnn.benchmark = True
-    
+
     if is_webcam:
         vid = cv2.VideoCapture(int(path))
     else:
@@ -337,23 +344,24 @@ def log_video(net:Yolact, path:str, out_path:str=None, flip:bool=False):
     flag_port = False
     index = 0
     start_time = 0
-    
+
     # count the number of frames
     fps = vid.get(cv2.CAP_PROP_FPS)
-    
+
     if out_path is not None:
         writer = write_video(path, out_path)
+
+    if not check_flip(path):
+        flip = not (flip)
 
     while True:
         ret, frame = vid.read()
         if not ret:
             cv2.waitKey(10)
-            
+
             vid.release()
             cv2.destroyAllWindows()
             break
-            
-        
 
         if flip:
             frame = cv2.flip(frame, 1)
@@ -365,7 +373,7 @@ def log_video(net:Yolact, path:str, out_path:str=None, flip:bool=False):
 
         dic_mask = get_mask(preds, frame_rotate, None, None, undo_transform=False)
         arm_entry = ArmEntry(dic_mask)
-        
+
         if flag_start == 0:
             if arm_entry.check_start():
                 start_time = index / fps
@@ -397,11 +405,11 @@ def log_video(net:Yolact, path:str, out_path:str=None, flip:bool=False):
             writer.write(img_numpy)
             # cv2.imwrite(f'{out_path}/{index}.jpg', img_numpy)
         index += 1
-         
+
         # calculate duration of the video
         end_time = index / fps - start_time
-        if flag_start==1 and end_time >= 15:
-            print("End:", round(end_time,2))
+        if flag_start == 1 and end_time >= 15:
+            print("End:", round(end_time, 2))
             break
 
     vid.release()
@@ -411,7 +419,7 @@ def log_video(net:Yolact, path:str, out_path:str=None, flip:bool=False):
     return clear_list(list_result)
 
 
-def evaluate(net:Yolact, dataset, train_mode=False, flip:bool=False):
+def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False):
     net.detect.use_fast_nms = args.fast_nms
     net.detect.use_cross_class_nms = args.cross_class_nms
     cfg.mask_proto_debug = args.mask_proto_debug
@@ -433,7 +441,7 @@ def evaluate(net:Yolact, dataset, train_mode=False, flip:bool=False):
             inp, out = args.video.split(':')
             if check_path_exists(inp):
                 if check_file_extension(inp) == 'mov':
-                    flip = not(flip)
+                    flip = not (flip)
                 elif check_file_extension(inp) == 'mp4':
                     flip = flip
                 else:
@@ -487,7 +495,7 @@ if __name__ == '__main__':
                                     transform=BaseTransform(), has_gt=cfg.dataset.has_gt)
             prep_coco_cats()
         else:
-            dataset = None      
+            dataset = None
 
         print('Loading model...', end='')
         net = Yolact()
@@ -498,4 +506,4 @@ if __name__ == '__main__':
         if args.cuda:
             net = net.cuda()
 
-        evaluate(net, dataset, flip=args.flip)
+        evaluate(net, dataset)
