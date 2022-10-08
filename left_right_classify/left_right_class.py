@@ -5,16 +5,17 @@ import numpy as np
 class left_right:
 
     def __init__(self, image):
-        self.image = cv2.imread(image, cv2.IMREAD_GRAYSCALE)
-        self.height, self.width = self.image.shape
-        self.crop = 30
+        self.image = image
+        self.height, self.width, _ = self.image.shape
+        self.crop = 100
         self.thresh = 200
         self.kernel = np.ones((5, 5), np.uint8)
         self.iterations = 1
 
     def _processing_image(self):
-        img_crop = self.image[self.crop:self.height - self.crop, self.crop:self.width - self.crop]
-        ret, thresh = cv2.threshold(img_crop.copy(), self.thresh, 255, 0)
+        image_gray = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        img_crop = image_gray[self.crop:self.height - self.crop, self.crop:self.width - self.crop]
+        _, thresh = cv2.threshold(img_crop.copy(), self.thresh, 255, 0)
         img_dilation = cv2.dilate(thresh, self.kernel, iterations=self.iterations)
         contours, _ = cv2.findContours(img_dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         return contours
