@@ -673,7 +673,7 @@ yolact_base_config = coco_base_config.copy({
     
     # Training params
     'lr_steps': (280000, 600000, 700000, 750000),
-    'max_iter': 5000,
+    'max_iter': 100000,
     
     # Backbone Settings
     'backbone': resnet101_backbone.copy({
@@ -782,7 +782,7 @@ yolact_resnet50_mouse_config = yolact_resnet50_config.copy({
     'num_classes': len(mouse_dataset.class_names) + 1,
 
     # Image Size
-    'max_size': 640,
+    'max_size': 1028,
 })
 # ----------------------- YOLACT++ CONFIGS ----------------------- #
 

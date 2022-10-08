@@ -94,6 +94,7 @@ ENV/
 
 # weights
 weights/
+outputs/
 
 #DS_Store
 .DS_Store
@@ -136,6 +137,9 @@ data/cityscapes
 ssd.pytorch/
 
 # some datasets
+data/mouse_video_data_v1.1.0.zip
+data/train_v1.0.0
+data/val_v1.0.0
 data/train/images
 data/val/images
 data/VOCdevkit/
