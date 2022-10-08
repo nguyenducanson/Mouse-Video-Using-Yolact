@@ -24,7 +24,7 @@ class left_right:
         contours = self._processing_image()
         list_point = list(contours[0])
 
-        for l in contours[2:]:
+        for l in contours[1:]:
             list_point += list(l)
 
         list_point_2 = []
