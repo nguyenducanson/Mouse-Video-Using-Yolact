@@ -7,7 +7,7 @@ class left_right:
     def __init__(self, image):
         self.image = image
         self.height, self.width, _ = self.image.shape
-        self.crop = 100
+        self.crop = 150
         self.thresh = 200
         self.kernel = np.ones((5, 5), np.uint8)
         self.iterations = 1
