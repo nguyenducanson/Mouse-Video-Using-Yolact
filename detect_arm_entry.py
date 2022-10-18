@@ -39,6 +39,8 @@ def parse_args(argv=None):
                         help='Trained state_dict file path to open. If "interrupt", this will open the interrupt file.')
     parser.add_argument('--top_k', default=5, type=int,
                         help='Further restrict the number of predictions to parse')
+    parser.add_argument('--count_time', default=300, type=int,
+                        help='number of seconds to count arm entry')
     parser.add_argument('--cuda', default=True, type=str2bool,
                         help='Use cuda to evaulate model')
     parser.add_argument('--fast_nms', default=True, type=str2bool,
@@ -330,7 +332,7 @@ def evalimages(net: Yolact, input_folder: str, output_folder: str, flip: bool = 
     print('Done.')
 
 
-def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False):
+def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False, count_time: int = 300):
     # If the path is a digit, parse it as a webcam index
     is_webcam = path.isdigit()
     list_result = []
@@ -412,7 +414,8 @@ def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False):
 
         # calculate duration of the video
         end_time = index / fps - start_time
-        if flag_start == 1 and end_time >= 120:
+
+        if flag_start == 1 and end_time >= count_time:
             print("End:", round(end_time, 2))
             break
 
@@ -423,7 +426,7 @@ def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False):
     return clear_list(list_result)
 
 
-def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False):
+def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False, count_time: int = 300):
     net.detect.use_fast_nms = args.fast_nms
     net.detect.use_cross_class_nms = args.cross_class_nms
     cfg.mask_proto_debug = args.mask_proto_debug
@@ -454,9 +457,9 @@ def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False):
             else:
                 print('Not exits file')
                 return
-            print(log_video(net, inp, out, flip=flip))
+            print(log_video(net, inp, out, flip=flip, count_time=count_time))
         else:
-            print(log_video(net, args.video, flip=flip))
+            print(log_video(net, args.video, flip=flip, count_time=count_time))
         return
 
 
@@ -510,4 +513,4 @@ if __name__ == '__main__':
         if args.cuda:
             net = net.cuda()
 
-        evaluate(net, dataset)
+        evaluate(net, dataset, count_time=args.count_time)
