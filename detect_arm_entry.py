@@ -412,7 +412,7 @@ def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False):
 
         # calculate duration of the video
         end_time = index / fps - start_time
-        if flag_start == 1 and end_time >= 15:
+        if flag_start == 1 and end_time >= 120:
             print("End:", round(end_time, 2))
             break
 
