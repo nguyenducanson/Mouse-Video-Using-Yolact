@@ -430,10 +430,15 @@ def log_video(net: Yolact, path: str, out_path: str = None, csv_file: str = None
     aes, _, sa_score = calculate_sa_score(clear_list(list_result))
     
     if csv_file:
-        with open(csv_file, 'w',newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(["Video", "Start", "End", "AES", "SA Score"])
-            writer.writerow([path, str(start_time), str(end_time), aes, str(sa_score)])
+        with open(csv_file, 'a') as s:
+            colnames = ["Video", "Start", "End", "AES", "SA Score"]
+            writer = csv.DictWriter(s, fieldnames=colnames)
+            
+            if os.stat(csv_file).st_size == 0:
+                writer.writeheader()
+            writer.writerow({"Video": path, "Start": str(round(start_time, 3)), "End": str(round(end_time, 3)), "AES": aes, "SA Score": str(round(sa_score, 3))})
+            
+        print(aes)
         print(f'Done with {path}')
         return
             
@@ -461,7 +466,7 @@ def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False, count_t
     
     elif args.videos is not None:
         csv_file = save_result(args.videos)
-        for d, _, files in os.walk(args.input):
+        for d, _, files in os.walk(args.videos):
             for f in files:
                 inp = os.path.join(d, f)
                 if check_file_extension(f) == 'mov':

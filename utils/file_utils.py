@@ -48,6 +48,9 @@ def calculate_sa_score(list_result: list):
 
 def save_result(video_dir):
     time = str(datetime.datetime.now())
-    result = os.makedirs(os.path.join(video_dir, 'results'))
-    csv_file = os.path.join(result, time + '.csv')
+    result_folder = os.path.join(video_dir, 'results')
+    if not os.path.exists(result_folder):
+      os.makedirs(os.path.join(video_dir, 'results'))
+      
+    csv_file = os.path.join(result_folder, str(time) + '.csv')
     return csv_file
