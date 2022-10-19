@@ -5,6 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 
 import cv2
+import csv
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -17,7 +18,7 @@ from left_right_classify.left_right_class import left_right
 from scripts.arm_entry import ArmEntry
 from utils import timer
 from utils.augmentations import BaseTransform, FastBaseTransform
-from utils.file_utils import check_path_exists, check_file_extension
+from utils.file_utils import check_path_exists, check_file_extension, calculate_sa_score, save_result
 from utils.functions import SavePath
 from yolact import Yolact
 
@@ -97,6 +98,8 @@ def parse_args(argv=None):
                         help='An input folder of images and output folder to save detected images. Should be in the format input->output.')
     parser.add_argument('--video', default=None, type=str,
                         help='A path to a video to evaluate on. Passing in a number will use that index webcam.')
+    parser.add_argument('--videos', default=None, type=str,
+                        help='A path to a folder includes videos to evaluate on.')
     parser.add_argument('--video_multiframe', default=1, type=int,
                         help='The number of frames to evaluate in parallel to make videos play at higher fps.')
     parser.add_argument('--score_threshold', default=0, type=float,
@@ -332,7 +335,7 @@ def evalimages(net: Yolact, input_folder: str, output_folder: str, flip: bool = 
     print('Done.')
 
 
-def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False, count_time: int = 300):
+def log_video(net: Yolact, path: str, out_path: str = None, csv_file: str = None, flip: bool = False, count_time: int = 300):
     # If the path is a digit, parse it as a webcam index
     is_webcam = path.isdigit()
     list_result = []
@@ -423,7 +426,18 @@ def log_video(net: Yolact, path: str, out_path: str = None, flip: bool = False, 
     if out_path is not None:
         writer.release()
     cv2.destroyAllWindows()
-    return clear_list(list_result)
+    
+    aes, _, sa_score = calculate_sa_score(clear_list(list_result))
+    
+    if csv_file:
+        with open(csv_file, 'w',newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(["Video", "Start", "End", "AES", "SA Score"])
+            writer.writerow([path, str(start_time), str(end_time), aes, str(sa_score)])
+        print(f'Done with {path}')
+        return
+            
+    return aes, sa_score
 
 
 def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False, count_time: int = 300):
@@ -439,10 +453,27 @@ def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False, count_t
         else:
             evalimage(net, args.image, flip=flip)
         return
+    
     elif args.images is not None:
         inp, out = args.images.split(':')
         evalimages(net, inp, out, flip=flip)
         return
+    
+    elif args.videos is not None:
+        csv_file = save_result(args.videos)
+        for d, _, files in os.walk(args.input):
+            for f in files:
+                inp = os.path.join(d, f)
+                if check_file_extension(f) == 'mov':
+                    flip = not (flip)
+                elif check_file_extension(f) == 'mp4':
+                    flip = flip
+                else:
+                    continue
+                    
+                log_video(net, inp, csv_file=csv_file, flip=flip, count_time=count_time)
+        return
+               
     elif args.video is not None:
         if ':' in args.video:
             inp, out = args.video.split(':')
@@ -457,6 +488,7 @@ def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False, count_t
             else:
                 print('Not exits file')
                 return
+            
             print(log_video(net, inp, out, flip=flip, count_time=count_time))
         else:
             print(log_video(net, args.video, flip=flip, count_time=count_time))
