@@ -31,11 +31,12 @@ class ArmEntry:
         list_score = self._get_overlap()
         list_label = ['center', 'A', 'B', 'C']
         port = False
-        if list_score[0] <= 0.98:
+        if list_score[0] <= 0.98: # if < 1.0
             port = True
             for i, score in enumerate(list_score[1:]):
-                if score >= 0.02:
+                if score >= 0.02: # if > 0
                     return list_label[i+1], port
+            # return None, port
         return list_label[0], port
 
     def check_flag_port(self):
