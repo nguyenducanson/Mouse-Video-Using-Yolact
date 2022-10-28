@@ -18,7 +18,7 @@ from left_right_classify.left_right_class import left_right
 from scripts.arm_entry import ArmEntry
 from utils import timer
 from utils.augmentations import BaseTransform, FastBaseTransform
-from utils.file_utils import check_path_exists, check_file_extension, calculate_sa_score, save_result
+from utils.file_utils import check_path_exists, check_file_extension, calculate_sa_score, save_result, clear_list
 from utils.functions import SavePath
 from yolact import Yolact
 
@@ -211,20 +211,6 @@ def prep_display(img, max_score_label, dic_mask):
 
     new_image = cv2.putText(img, max_score_label, (200, 200), cv2.FONT_HERSHEY_COMPLEX_SMALL, 2, (0, 0, 255), 2)
     return new_image
-
-
-def clear_list(list_label):
-    list_result = [list_label[0]]
-    i = j = 0
-    while i < len(list_label) - 1:
-        if list_label[i + 1] != list_result[j]:
-            list_result.append(list_label[i + 1])
-            i += 1
-            j += 1
-        else:
-            i += 1
-    list_result = list(filter(('center').__ne__, list_result))
-    return list_result
 
 
 def log_video(net: Yolact, path: str, out_path: str = None, csv_file: str = None, flip: bool = False, count_time: int = 300):
