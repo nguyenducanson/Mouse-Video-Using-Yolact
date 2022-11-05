@@ -249,7 +249,7 @@ def log_video(net: Yolact, path: str, out_path: str = None, csv_file: str = None
             vid.release()
             cv2.destroyAllWindows()
             break
-
+        
         if flip:
             frame = cv2.flip(frame, 1)
         frame_flip = cv2.flip(frame, 1)
@@ -259,6 +259,7 @@ def log_video(net: Yolact, path: str, out_path: str = None, csv_file: str = None
         preds = net(batch)
 
         dic_mask = get_mask(preds, frame_rotate, None, None, undo_transform=False)
+
         arm_entry = ArmEntry(dic_mask)
 
         if flag_start == 0:
@@ -411,7 +412,7 @@ if __name__ == '__main__':
         else:
             torch.set_default_tensor_type('torch.FloatTensor')
 
-        if args.image is None and args.video is None and args.images is None:
+        if args.videos is None and args.video is None:
             dataset = COCODetection(cfg.dataset.valid_images, cfg.dataset.valid_info,
                                     transform=BaseTransform(), has_gt=cfg.dataset.has_gt)
             prep_coco_cats()

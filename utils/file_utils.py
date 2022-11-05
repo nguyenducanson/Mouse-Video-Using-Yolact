@@ -58,11 +58,11 @@ def save_result(video_dir):
 
 def _add_list_result(location, tmp, list_result):
     if location == 'center':
-        if len(tmp) >= 10:
+        if len(tmp) >= 20:
             if len(list_result) == 0 or location != list_result[-1]:
                 list_result.append(location)
     else:
-        if len(tmp) >= 1:
+        if len(tmp) >= 10:
             if len(list_result) == 0 or location != list_result[-1]:
                 list_result.append(location)
     tmp = []
