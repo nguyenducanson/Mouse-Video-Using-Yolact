@@ -42,7 +42,10 @@ def calculate_sa_score(list_result: list):
     '''
     aes = ''.join(list_result)
     sa = [aes[i:i+3] for i in range(len(aes)-2) if aes[i] != aes[i+1] and  aes[i+1] != aes[i+2] and aes[i+2] != aes[i] ]
-    sa_score = round(100*len(sa)/(len(aes) - 2), 2)
+    try:
+        sa_score = round(100*len(sa)/(len(aes) - 2), 2)
+    except Exception:
+        return aes, sa, 0
     return aes, sa, sa_score
 
 

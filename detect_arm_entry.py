@@ -307,34 +307,37 @@ def log_video(net: Yolact, path: str, out_path: str = None, csv_file: str = None
         writer.release()
     cv2.destroyAllWindows()
     
-    aes, _, sa_score = calculate_sa_score(clear_list(list_result))
-    
-    if csv_file:
-        with open(csv_file, 'a') as s:
-            colnames = [
-                "Video",
-                "Start",
-                "End",
-                "AES",
-                "SA Score"
-            ]
-            writer = csv.DictWriter(s, fieldnames=colnames)
-            
-            if os.stat(csv_file).st_size == 0:
-                writer.writeheader()
-            writer.writerow({
-                "Video": path,
-                "Start": str(round(start_time, 3)),
-                "End": str(round(end_time, 3)),
-                "AES": aes,
-                "SA Score": str(round(sa_score, 3))
-            })
-            
-        print(aes)
-        print(f'Done with {path}')
-        return
-            
-    return aes, sa_score
+    try:
+        aes, _, sa_score = calculate_sa_score(clear_list(list_result))
+        
+        if csv_file:
+            with open(csv_file, 'a') as s:
+                colnames = [
+                    "Video",
+                    "Start",
+                    "End",
+                    "AES",
+                    "SA Score"
+                ]
+                writer = csv.DictWriter(s, fieldnames=colnames)
+                
+                if os.stat(csv_file).st_size == 0:
+                    writer.writeheader()
+                writer.writerow({
+                    "Video": path,
+                    "Start": str(round(start_time, 3)),
+                    "End": str(round(end_time, 3)),
+                    "AES": aes,
+                    "SA Score": str(round(sa_score, 3))
+                })
+                
+            print(aes)
+            print(f'Done with {path}')
+            return
+                
+        return aes, sa_score
+    except Exception as e:
+        return print(str(e))
 
 
 def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False, count_time: int = 300):
@@ -372,9 +375,9 @@ def evaluate(net: Yolact, dataset, train_mode=False, flip: bool = False, count_t
                 print('Not exits file')
                 return
             
-            print(log_video(net, inp, out, flip=flip, count_time=count_time))
+            log_video(net, inp, out, flip=flip, count_time=count_time)
         else:
-            print(log_video(net, args.video, flip=flip, count_time=count_time))
+            log_video(net, args.video, flip=flip, count_time=count_time)
         return
 
 
