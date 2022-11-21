@@ -174,10 +174,10 @@ pascal_sbd_dataset = dataset_base.copy({
 
 mouse_dataset = dataset_base.copy({
   'name': 'mouse',
-  'train_info': './data/train/annotations_2.json',
-  'train_images': './data/train/images/',
-  'valid_info': './data/val/annotations_2.json',
-  'valid_images': './data/val/images/',
+  'train_info': './data/data_v1.2.0/annotations.json',
+  'train_images': './data/data_v1.2.0/JPEGImages',
+  'valid_info': './data/data_v1.2.0/annotations.json',
+  'valid_images': './data/data_v1.2.0/JPEGImages',
   'class_names': ('port','center','mouse'),
   'label_map': { 1:  1 , 2: 2, 3: 3}
 })
